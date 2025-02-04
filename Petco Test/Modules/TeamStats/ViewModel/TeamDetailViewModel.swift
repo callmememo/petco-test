@@ -10,7 +10,6 @@ import SwiftUI
 
 @MainActor
 class TeamDetailViewModel: ObservableObject, Lodable {
-    
     @Published var teamDetails: TeamDetail?
     @Published var loadingState: LoadingState = .loading
     @Published var errorMessage: String? = nil
@@ -22,7 +21,6 @@ class TeamDetailViewModel: ObservableObject, Lodable {
     }
     
     func loadTeamDetails(for team: String) async {
-        if loadingState != .loading { return }
         loadingState = .loading
         errorMessage = nil        
         do {

@@ -13,16 +13,17 @@ struct TeamDetailView: View {
     let teamName: String
     
     var body: some View {
-        ScrollView {            
+        ScrollView {
             switch viewModel.loadingState {
             case .loading:
-                ProgressView("Loading....")
-                    .padding()
+                LoadingView()
             case .failed:
                 if let error = viewModel.errorMessage {
-                    Text("Error: \(error)")
-                        .foregroundColor(.red)
-                        .padding()
+                    ErrorView(errorMessage: error) {
+                        Task {
+                            await viewModel.loadTeamDetails(for: teamName)
+                        }
+                    }
                 }
             case .loaded:
                 if let detail = viewModel.teamDetails {

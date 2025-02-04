@@ -16,12 +16,7 @@ struct TeamStatsTableView: View {
                 TopTabBarView()
                 switch viewModel.loadingState {
                 case .loading:
-                    VStack {
-                        Spacer()
-                        ProgressView("Loading....")
-                            .padding()
-                        Spacer()
-                    }
+                    LoadingView()
                 case .loaded:
                     HStack {
                         Menu {
@@ -57,19 +52,10 @@ struct TeamStatsTableView: View {
                     }
                 case .failed:
                     if let error = viewModel.errorMessage {
-                        VStack {
-                            Spacer()
-                            VStack {
-                                Text("Error: \(error)")
-                                    .foregroundColor(.primary)
-                                    .padding()
-                                Button("Retry") {
-                                    Task {
-                                        await viewModel.loadTeamStatisticsData()
-                                    }
-                                }
+                        ErrorView(errorMessage: error) {
+                            Task {
+                                await viewModel.loadTeamStatisticsData()
                             }
-                            Spacer()
                         }
                     }
                 }

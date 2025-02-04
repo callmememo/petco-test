@@ -78,7 +78,6 @@ struct CustomTabBar: View {
                 Button(action: {
                     withAnimation {
                         selectedTab = tab
-                        print(selectedTab == tab)
                     }
                 }) {
                     CustomTabBarItem(tab: tab, isSelected: selectedTab == tab)

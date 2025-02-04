@@ -21,7 +21,6 @@ class TeamStatsViewModel: ObservableObject, Lodable {
     }
     
     func loadTeamStatisticsData() async {
-        if loadingState != .loading { return }
         loadingState = .loading
         errorMessage = nil
         
