@@ -6,31 +6,130 @@
 //
 
 import XCTest
-@testable import Petco_Test
+@testable import Petco_Test  // Asegúrate de que el nombre del módulo coincida con tu target
 
-final class Petco_TestTests: XCTestCase {
+// MARK: - MockURLProtocol
 
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+class MockURLProtocol: URLProtocol {
+    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    
+    override class func canInit(with request: URLRequest) -> Bool {
+        return true
     }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        return request
     }
-
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
-    }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
+    
+    override func startLoading() {
+        guard let handler = MockURLProtocol.requestHandler else {
+            XCTFail("MockURLProtocol.requestHandler no está configurado")
+            return
+        }
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
         }
     }
-
 }
+
+class TeamDetailDecodingTests: XCTestCase {
+    func testTeamDetailResponseDecoding() throws {
+        let json = """
+        {
+            "teams": [
+                {
+                    "idTeam": "133604",
+                    "strTeam": "Arsenal",
+                    "strBadge": "https://www.thesportsdb.com/images/media/team/badge/arsenal.png",
+                    "strDescriptionEN": "Arsenal Football Club is a professional football club...",
+                    "strStadium": "Emirates Stadium",
+                    "intFormedYear": "1886",
+                    "strManager": "Mikel Arteta"
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        
+        let response = try JSONDecoder().decode(TeamsResponse.self, from: json)
+        XCTAssertNotNil(response.teams)
+        XCTAssertEqual(response.teams.first?.idTeam, "133604")
+        XCTAssertEqual(response.teams.first?.strTeam, "Arsenal")
+        XCTAssertEqual(response.teams.first?.strManager, "Mikel Arteta")
+    }
+}
+
+// MARK: - Test del ViewModel (Fetch exitoso y fallo)
+
+class TeamDetailViewModelTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        // Registramos el protocolo mock para interceptar las peticiones de URLSession.shared.
+        URLProtocol.registerClass(MockURLProtocol.self)
+    }
+    
+    override func tearDown() {
+        URLProtocol.unregisterClass(MockURLProtocol.self)
+        MockURLProtocol.requestHandler = nil
+        super.tearDown()
+    }
+    
+    @MainActor
+    func testFetchTeamDetailSuccess() async throws {
+        let json = """
+        {
+            "teams": [
+                {
+                    "idTeam": "133604",
+                    "strTeam": "Arsenal",
+                    "strBadge": "https://www.thesportsdb.com/images/media/team/badge/arsenal.png",
+                    "strDescriptionEN": "Arsenal Football Club is a professional club...",
+                    "strStadium": "Emirates Stadium",
+                    "intFormedYear": "1886",
+                    "strManager": "Mikel Arteta"
+                }
+            ]
+        }
+        """.data(using: .utf8)!
+        
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!,
+                                           statusCode: 200,
+                                           httpVersion: nil,
+                                           headerFields: nil)!
+            return (response, json)
+        }
+        
+        let viewModel = TeamDetailViewModel()
+        await viewModel.loadTeamDetails(for: "Arsenal")
+        
+        XCTAssertNotNil(viewModel.teamDetails)
+        XCTAssertEqual(viewModel.teamDetails?.strTeam, "Arsenal")
+        XCTAssertEqual(viewModel.loadingState, .loaded)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+    
+    @MainActor
+    func testFetchTeamDetailFailure() async throws {
+        MockURLProtocol.requestHandler = { request in
+            let response = HTTPURLResponse(url: request.url!,
+                                           statusCode: 404,
+                                           httpVersion: nil,
+                                           headerFields: nil)!
+            let data = Data()
+            return (response, data)
+        }
+        
+        let viewModel = TeamDetailViewModel()
+        await viewModel.loadTeamDetails(for: "Arsenal")
+        
+        XCTAssertNil(viewModel.teamDetails)
+        XCTAssertEqual(viewModel.loadingState, .failed)
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+}
+
